@@ -227,9 +227,12 @@ class SimpleModel(BaseModel):
         if self.include_lm:
             pass
 
-    def loss(self, batch_data, *target_tasks):
+    def loss(self, batch_data, *target_tasks, confusion=False):
         ((word, wlen), (char, clen)), tasks = batch_data
         output = {}
+
+        if confusion:
+            confusion_matrix = {task: [] for task in target_tasks}
 
         # Embedding
         wemb, cemb, cemb_outs = self.embedding(word, wlen, char, clen)
@@ -250,6 +253,7 @@ class SimpleModel(BaseModel):
         # Decoder
         for task in target_tasks:
             (target, length), at_layer = tasks[task], self.tasks[task]['layer']
+            print(target)
             # prepare input layer
             outs = None
             if enc_outs is not None:
