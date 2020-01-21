@@ -193,6 +193,7 @@ class BaseModel(nn.Module):
                 params["kwargs"].update({
                     "transformer_class": settings.transformer["transformer_model"],
                     "transformer_path": settings.transformer["transformer_path"],
+                    "transformer_dim": settings.transformer["transformer_dim"],
                     "wemb_type": "transformer"
                 })
 

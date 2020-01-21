@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +5,7 @@ import torch.nn.functional as F
 from pie import torch_utils, initialization
 
 from .embedding import RNNEmbedding, CNNEmbedding, EmbeddingMixer, EmbeddingConcat
+from .context_embedding import ReducedTransformer
 from .decoder import AttentionalDecoder, LinearDecoder, CRFDecoder
 from .encoder import RNNEncoder
 from .base_model import BaseModel
@@ -86,10 +86,18 @@ class SimpleModel(BaseModel):
                 except ImportError:
                     print("You need the package transformers to be installed")
                     raise Exception()
-                self.wemb = getattr(transformers, kwargs["transformer_class"]).from_pretrained(
+                self._wemb_transformer = getattr(transformers, kwargs["transformer_class"]).from_pretrained(
                     kwargs["transformer_path"]
                 )
-                torch_utils.freeze_model(self.wemb)
+                if kwargs.get("transformer_dim", 0) > 0:
+                    self.wemb = ReducedTransformer(
+                        transformer=self._wemb_transformer,
+                        transformer_dim=kwargs["transformer_dim"],
+                        out_dim=self.wemb_dim
+                    )
+                else:
+                    self.wemb = self._wemb_transformer
+                torch_utils.freeze_model(self._wemb_transformer)
 
         self.cemb = None
         if cemb_type.upper() == 'RNN':
@@ -224,7 +232,7 @@ class SimpleModel(BaseModel):
                     word, self.word_dropout, self.training, self.label_encoder.word)
                 wemb = self.wemb(word)
             elif self.wemb_type == "transformer":
-                wemb, sentence = self.wemb(word)  # last hidden, sentence
+                wemb, _ = self.wemb(word)  # last hidden, sentence
                 wemb = wemb[1:, :]  # Remove SOS
         if self.cemb is not None:
             # cemb_outs: (seq_len x batch x emb_dim)

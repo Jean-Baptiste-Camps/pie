@@ -118,7 +118,8 @@ def run(config_path):
                         include_lm=settings.include_lm,
                         wemb_type=settings.wemb_type,
                         transformer_class=settings.transformer["transformer_model"],
-                        transformer_path=settings.transformer["transformer_path"]
+                        transformer_path=settings.transformer["transformer_path"],
+                        transformer_dim=settings.transformer["transformer_dim"]
                         )
 
     # pretrain(/load pretrained) embeddings
