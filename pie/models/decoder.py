@@ -437,7 +437,6 @@ class AttentionalDecoder(nn.Module):
             score[mask == 0] = 0
             scores += score
 
-        print("As string, pred", self.label_encoder.multi_stringify(zip(*hyps), keep_raw=False))
         hyps = self.label_encoder.multi_stringify(zip(*hyps), keep_raw=keep_raw)
         scores = [s/(len(hyp) + TINY) for s, hyp in zip(scores.tolist(), hyps)]
 

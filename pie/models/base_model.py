@@ -93,10 +93,6 @@ class BaseModel(nn.Module):
                         trues[task], lengths = tasks[task]
                         if le.level == "char":
                             trues[task], lengths = trues[task].tolist(), lengths.tolist()
-                            print("trues, as_string", le.multi_stringify(
-                                zip(*trues[task]),
-                                length=lengths
-                            ))
                             trues[task] = le.multi_stringify(
                                 zip(*trues[task]),
                                 length=lengths,

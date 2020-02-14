@@ -188,8 +188,9 @@ class LabelEncoder(object):
         eos = self.get_eos()
         bos = self.get_bos()
         start = 0
-        if bos:
-            start = 1
+        seqs = list(seqs)
+        if bos is not None:
+            start = int(seqs[0][0] == bos)  # If the first char of the first word is not BOS, then we won't get it
 
         # compute length based on <eos>
         if length is None:
