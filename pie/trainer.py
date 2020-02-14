@@ -257,17 +257,22 @@ class Trainer(object):
 
         stored_scores = {}
 
+        rep_items, rep_start = 0, time.time()
         with torch.no_grad():
-            dev_loss = self.evaluate(devset)
+            dev_loss = self.evaluate(devset)  # Maybe output Tuple[Dict, Dict] where one is logits + input ?
             print()
             print("::: Dev losses :::")
             print()
             print('\n'.join('{}: {:.3f}'.format(k, v) for k, v in dev_loss.items()))
             print()
-            summary = self.model.evaluate(devset, self.dataset)
+            summary = self.model.evaluate(devset, self.dataset)  # Add a logit optional dictionary ?
             for task_name, scorer in summary.items():
                 stored_scores[task_name] = scorer.get_scores()
                 scorer.print_summary(scores=stored_scores[task_name])
+
+        duration = (time.time() - rep_start)
+        print("Check Duration         || {} || {:.0f} w/s".format(
+            duration, rep_items / duration))
 
         self.model.train()
         dev_scores = {}
@@ -343,7 +348,7 @@ class Trainer(object):
                 logging.info("Starting epoch [{}]".format(epoch))
                 self.train_epoch(devset, epoch)
                 epoch_total = time.time() - epoch_start
-                logging.info("Finished epoch [{}] in [{:g}] secs".format(
+                print("Finished epoch [{}] in [{:g}] secs".format(
                     epoch, epoch_total))
 
         except EarlyStopException as e:
