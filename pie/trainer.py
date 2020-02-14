@@ -265,6 +265,9 @@ class Trainer(object):
             print()
             print('\n'.join('{}: {:.3f}'.format(k, v) for k, v in dev_loss.items()))
             print()
+            duration = (time.time() - rep_start)
+            print("Check Dev Loss Duration|| {} || {:.0f} w/s".format(
+                duration, rep_items / duration))
             summary = self.model.evaluate(devset, self.dataset)  # Add a logit optional dictionary ?
             for task_name, scorer in summary.items():
                 stored_scores[task_name] = scorer.get_scores()
