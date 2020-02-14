@@ -16,6 +16,14 @@ from pie import utils, torch_utils, constants
 from . import preprocessors
 
 
+def with_in(a_list, value):
+    """ Avoids using try by using in. On a lot of small list, more efficient."""
+    if value in a_list:
+        return a_list.index(value)
+    else:
+        return -1
+
+
 class LabelEncoder(object):
     """
     Label encoder
@@ -173,15 +181,34 @@ class LabelEncoder(object):
 
         return [self.inverse_table[i] for i in seq]
 
-    def stringify(self, seq, length=None):
+    def multi_stringify(self, seqs, length=None, keep_raw=False):
         if not self.fitted:
             raise ValueError("Vocabulary hasn't been computed yet")
 
         # compute length based on <eos>
         if length is None:
             eos = self.get_eos()
-            if eos is None:
-                raise ValueError("Don't know how to compute input length")
+            bos = self.get_bos()
+            start = 0
+            if bos:
+                start = 1
+
+            seqs = [
+                seq[start:with_in(seq, eos)]
+                for seq in seqs
+            ]
+
+        if keep_raw:
+            return seqs
+        return [self.inverse_transform(seq) for seq in seqs]
+
+    def stringify(self, seq, length=None, keep_raw=False):
+        if not self.fitted:
+            raise ValueError("Vocabulary hasn't been computed yet")
+
+        # compute length based on <eos>
+        if length is None:
+            eos = self.get_eos()
             try:
                 length = seq.index(eos)
             except ValueError:  # eos not found in input
@@ -190,10 +217,11 @@ class LabelEncoder(object):
         seq = seq[:length]
 
         # eventually remove <bos> if required
-        if self.get_bos() is not None:
-            if len(seq) > 0 and seq[0] == self.get_bos():
-                seq = seq[1:]
+        if self.get_bos() is not None and seq:
+            seq = seq[1:]
 
+        if keep_raw:
+            return seq
         seq = self.inverse_transform(seq)
 
         return seq

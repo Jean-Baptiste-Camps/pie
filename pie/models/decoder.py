@@ -88,7 +88,7 @@ class LinearDecoder(nn.Module):
 
         return loss
 
-    def predict(self, enc_outs, lengths):
+    def predict(self, enc_outs, lengths, keep_raw=False):
         """
         Parameters
         ==========
@@ -96,11 +96,23 @@ class LinearDecoder(nn.Module):
         """
         probs = F.softmax(self.decoder(enc_outs), dim=-1)
         probs, preds = torch.max(probs.transpose(0, 1), dim=-1)
-
-        output_probs, output_preds = [], []
-        for idx, length in enumerate(lengths.tolist()):
-            output_preds.append(self.label_encoder.inverse_transform(preds[idx])[:length])
-            output_probs.append(probs[idx].tolist())
+        if keep_raw:
+            probs, preds, lengths = probs.tolist(), preds.tolist(), lengths.tolist()
+            return zip(*[
+                (
+                    pred[:length],
+                    prob
+                )
+                for pred, prob, length in zip(preds, probs, lengths)
+            ])
+        # On small corpus (10k tokens, got 0.3 sec / 13.13 gain. Not negligible but not a big win
+        output_preds, output_probs = zip(*[
+            (
+                self.label_encoder.inverse_transform(pred[:length]),
+                prob
+            )
+            for pred, prob, length in zip(preds, probs, lengths)
+        ])
 
         return output_preds, output_probs
 
@@ -209,7 +221,7 @@ class CRFDecoder(nn.Module):
         # be weighted down to make it also per word?
         return torch.mean(Z - score)
 
-    def predict(self, enc_outs, lengths):
+    def predict(self, enc_outs, lengths, keep_raw=False):
         # (seq_len x batch x vocab)
         logits = self.projection(enc_outs)
         seq_len, _, vocab = logits.size()
@@ -236,7 +248,10 @@ class CRFDecoder(nn.Module):
             tag_sequence[seq_len+1, end_tag] = 0.
 
             path, score = torch_utils.viterbi_decode(tag_sequence[:seq_len+2], trans)
-            hyps.append(self.label_encoder.inverse_transform(path[1:-1]))
+            if keep_raw:
+                hyps.append(path[1:-1])
+            else:
+                hyps.append(self.label_encoder.inverse_transform(path[1:-1]))
             scores.append(score)
 
         return hyps, scores
@@ -385,7 +400,7 @@ class AttentionalDecoder(nn.Module):
 
         return hyps, scores
 
-    def predict_max(self, enc_outs, lengths, context=None, max_seq_len=20):
+    def predict_max(self, enc_outs, lengths, context=None, max_seq_len=20, keep_raw=False):
         """
         Decoding routine for inference with step-wise argmax procedure
 
@@ -399,7 +414,6 @@ class AttentionalDecoder(nn.Module):
         inp = torch.zeros(batch, dtype=torch.int64, device=device)
         inp += self.label_encoder.get_bos()
         hyps, scores = [], 0
-
         for _ in range(max_seq_len):
             if mask.sum().item() == 0:
                 break
@@ -423,12 +437,12 @@ class AttentionalDecoder(nn.Module):
             score[mask == 0] = 0
             scores += score
 
-        hyps = [self.label_encoder.stringify(hyp) for hyp in zip(*hyps)]
+        hyps = self.label_encoder.multi_stringify(list(zip(*hyps)), keep_raw=keep_raw)
         scores = [s/(len(hyp) + TINY) for s, hyp in zip(scores.tolist(), hyps)]
 
         return hyps, scores
 
-    def predict_beam(self, enc_outs, lengths, context=None, max_seq_len=50, width=12):
+    def predict_beam(self, enc_outs, lengths, context=None, max_seq_len=50, width=12, keep_raw=False):
         """
         Decoding routine for inference with beam search
 

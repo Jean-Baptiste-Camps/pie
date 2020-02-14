@@ -300,7 +300,7 @@ class SimpleModel(BaseModel):
 
         return output
 
-    def predict(self, inp, *tasks, use_beam=False, beam_width=10, **kwargs):
+    def predict(self, inp, *tasks, use_beam=False, beam_width=10, keep_raw=False, **kwargs):
         tasks = set(self.label_encoder.tasks if not len(tasks) else tasks)
         preds = {}
         (word, wlen), (char, clen) = inp
@@ -330,23 +330,23 @@ class SimpleModel(BaseModel):
 
             if self.label_encoder.tasks[task].level.lower() == 'char':
                 if isinstance(decoder, LinearDecoder):
-                    hyps, _ = decoder.predict(cemb_outs, clen)
+                    hyps, _ = decoder.predict(cemb_outs, clen, keep_raw=keep_raw)
                 elif isinstance(decoder, CRFDecoder):
-                    hyps, _ = decoder.predict(cemb_outs, clen)
+                    hyps, _ = decoder.predict(cemb_outs, clen, keep_raw=keep_raw)
                 else:
                     context = get_context(outs, wemb, wlen, self.tasks[task]['context'])
                     if use_beam:
                         hyps, _ = decoder.predict_beam(cemb_outs, clen,
-                                                       context=context, width=beam_width)
+                                                       context=context, width=beam_width, keep_raw=keep_raw)
                     else:
-                        hyps, _ = decoder.predict_max(cemb_outs, clen, context=context)
-                    if self.label_encoder.tasks[task].preprocessor_fn is None:
+                        hyps, _ = decoder.predict_max(cemb_outs, clen, context=context, keep_raw=keep_raw)
+                    if self.label_encoder.tasks[task].preprocessor_fn is None and not keep_raw:
                         hyps = [''.join(hyp) for hyp in hyps]
             else:
                 if isinstance(decoder, LinearDecoder):
-                    hyps, _ = decoder.predict(outs, wlen)
+                    hyps, _ = decoder.predict(outs, wlen, keep_raw=keep_raw)
                 elif isinstance(decoder, CRFDecoder):
-                    hyps, _ = decoder.predict(outs, wlen)
+                    hyps, _ = decoder.predict(outs, wlen, keep_raw=keep_raw)
                 else:
                     raise ValueError()
 

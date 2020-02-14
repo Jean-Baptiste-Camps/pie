@@ -68,9 +68,8 @@ class BaseModel(nn.Module):
         with torch.no_grad():
             for (inp, tasks), (rinp, rtasks) in tqdm.tqdm(
                     dataset.batch_generator(return_raw=True)):
-
+                # (inp, tasks) == encoded
                 preds = self.predict(inp, **kwargs)
-
                 # - get input tokens
                 tokens = [w for line in rinp for w in line]
 
@@ -78,14 +77,31 @@ class BaseModel(nn.Module):
                 trues = {}
                 for task in preds:
                     le = self.label_encoder.tasks[task]
-                    # - transform targets
-                    trues[task] = le.preprocess(
-                        [t for line in rtasks for t in line[le.target]], tokens)
-
-                    # - flatten token level predictions
-                    if le.level == 'token':
-                        preds[task] = [pred for batch in preds[task] for pred in batch]
-
+                    if not kwargs.get("keep_raw", False):
+                        # - transform targets
+                        trues[task] = le.preprocess(
+                            [t for line in rtasks for t in line[le.target]], tokens)
+                        # - flatten token level predictions
+                        if le.level == 'token':
+                            preds[task] = [pred for batch in preds[task] for pred in batch]
+                    else:
+                        trues[task], lengths = tasks[task]
+                        if le.level == "char":
+                            trues[task], lengths = trues[task].tolist(), lengths.tolist()
+                            trues[task] = le.multi_stringify(
+                                list(zip(*trues[task])),
+                                length=lengths,
+                                keep_raw=True
+                            )
+                        else:
+                            # Need to transpose here
+                            trues[task], lengths = trues[task].transpose(0, 1).tolist(), lengths.tolist()
+                            preds[task] = [pred for batch in preds[task] for pred in batch]
+                            trues[task] = [
+                                pred
+                                for batch, length in zip(trues[task], lengths)
+                                for pred in batch[:length]
+                            ]
                 # accumulate
                 for task, scorer in scorers.items():
                     scorer.register_batch(preds[task], trues[task], tokens)
