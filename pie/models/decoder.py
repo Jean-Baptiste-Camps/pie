@@ -105,7 +105,7 @@ class LinearDecoder(nn.Module):
                 )
                 for pred, prob, length in zip(preds, probs, lengths)
             ])
-        # On small corpus (10k tokens, got 0.3 sec / 13.13 gain. Not negligible but not a big win
+
         output_preds, output_probs = zip(*[
             (
                 self.label_encoder.inverse_transform(pred[:length]),
@@ -437,7 +437,8 @@ class AttentionalDecoder(nn.Module):
             score[mask == 0] = 0
             scores += score
 
-        hyps = self.label_encoder.multi_stringify(list(zip(*hyps)), keep_raw=keep_raw)
+        print("As string, pred", self.label_encoder.multi_stringify(zip(*hyps), keep_raw=False))
+        hyps = self.label_encoder.multi_stringify(zip(*hyps), keep_raw=keep_raw)
         scores = [s/(len(hyp) + TINY) for s, hyp in zip(scores.tolist(), hyps)]
 
         return hyps, scores

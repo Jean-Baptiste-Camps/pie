@@ -16,12 +16,12 @@ from pie import utils, torch_utils, constants
 from . import preprocessors
 
 
-def with_in(a_list, value):
+def with_in(a_list, value, start):
     """ Avoids using try by using in. On a lot of small list, more efficient."""
     if value in a_list:
-        return a_list.index(value)
+        return a_list.index(value)-start  # Remove sos token from index
     else:
-        return -1
+        return None
 
 
 class LabelEncoder(object):
@@ -185,18 +185,20 @@ class LabelEncoder(object):
         if not self.fitted:
             raise ValueError("Vocabulary hasn't been computed yet")
 
+        eos = self.get_eos()
+        bos = self.get_bos()
+        start = 0
+        if bos:
+            start = 1
+
         # compute length based on <eos>
         if length is None:
-            eos = self.get_eos()
-            bos = self.get_bos()
-            start = 0
-            if bos:
-                start = 1
-
             seqs = [
-                seq[start:with_in(seq, eos)]
+                seq[start:with_in(seq, eos, start)]
                 for seq in seqs
             ]
+        else:
+            seqs = [seq[start:l-start] for seq, l in zip(seqs, length)]
 
         if keep_raw:
             return seqs

@@ -20,6 +20,11 @@ from pie.settings import Settings
 from .scorer import Scorer
 
 
+def _stringify(a_list_of_list_of_int):
+    """ Creates a string out of a list of int """
+    return [str(a_list_of_int) for a_list_of_int in a_list_of_list_of_int]
+
+
 class BaseModel(nn.Module):
     """
     Abstract model class defining the model interface
@@ -88,11 +93,17 @@ class BaseModel(nn.Module):
                         trues[task], lengths = tasks[task]
                         if le.level == "char":
                             trues[task], lengths = trues[task].tolist(), lengths.tolist()
+                            print("trues, as_string", le.multi_stringify(
+                                zip(*trues[task]),
+                                length=lengths
+                            ))
                             trues[task] = le.multi_stringify(
-                                list(zip(*trues[task])),
+                                zip(*trues[task]),
                                 length=lengths,
                                 keep_raw=True
                             )
+                            trues[task] = _stringify(trues[task])
+                            preds[task] = _stringify(preds[task])
                         else:
                             # Need to transpose here
                             trues[task], lengths = trues[task].transpose(0, 1).tolist(), lengths.tolist()
