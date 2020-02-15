@@ -16,8 +16,8 @@ import torch.nn as nn
 from pie import utils
 from pie.data import MultiLabelEncoder
 from pie.settings import Settings
-
-from .scorer import Scorer
+import time
+from .scorer import Scorer, get_known_and_ambigous_tokens
 
 
 def _stringify(a_list_of_list_of_int):
@@ -35,6 +35,9 @@ class BaseModel(nn.Module):
         if isinstance(tasks, list):
             tasks = {task['name']: task for task in tasks}
         self.tasks = tasks
+        self.known = set()
+        self.ambs = {task: set() for task in tasks}
+        self._fitted_trainset_scorer = False
         super().__init__()
 
     def loss(self, batch_data):
@@ -55,6 +58,14 @@ class BaseModel(nn.Module):
         """
         raise NotImplementedError
 
+    def get_scorer(self, task, trainset=None):
+        scorer = Scorer(self.label_encoder.tasks[task])
+        if not self._fitted_trainset_scorer and trainset:
+            self.known, self.ambs = get_known_and_ambigous_tokens(trainset, list(self.label_encoder.tasks.values()))
+            self._fitted_trainset_scorer = True
+        scorer.set_known_and_amb(self.known, self.ambs[task])
+        return scorer
+
     def evaluate(self, dataset, trainset=None, **kwargs):
         """
         Get scores per task
@@ -66,15 +77,23 @@ class BaseModel(nn.Module):
         """
         assert not self.training, "Ooops! Inference in training mode. Call model.eval()"
 
+        start = time.time()
         scorers = {}
         for task, le in self.label_encoder.tasks.items():
-            scorers[task] = Scorer(le, trainset)
+            scorers[task] = self.get_scorer(task, trainset)
+            now = time.time()
+            print("Initiating scorer for{} : {}".format(task, now - start))
+            start = now
 
         with torch.no_grad():
             for (inp, tasks), (rinp, rtasks) in tqdm.tqdm(
                     dataset.batch_generator(return_raw=True)):
                 # (inp, tasks) == encoded
+                start = time.time()
                 preds = self.predict(inp, **kwargs)
+                now = time.time()
+                print("Predict {}".format(now - start))
+                start = now
                 # - get input tokens
                 tokens = [w for line in rinp for w in line]
 
@@ -109,9 +128,18 @@ class BaseModel(nn.Module):
                                 for batch, length in zip(trues[task], lengths)
                                 for pred in batch[:length]
                             ]
+                
+                now = time.time()
+                print("Trues {}".format(now - start))
+                start = now
+
                 # accumulate
                 for task, scorer in scorers.items():
                     scorer.register_batch(preds[task], trues[task], tokens)
+
+                now = time.time()
+                print("Accumulate {}".format(now - start))
+                start = now
 
         return scorers
 
