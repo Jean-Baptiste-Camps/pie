@@ -1,4 +1,3 @@
-
 import os
 import uuid
 import logging
@@ -6,13 +5,14 @@ import time
 import collections
 import random
 import tempfile
-
+from typing import Optional
 
 import tqdm
 
 import torch
 from torch import optim
 from torch.nn.utils import clip_grad_norm_
+from torch.cuda.amp import GradScaler, autocast
 
 logging.basicConfig(format='%(asctime)s : %(message)s', level=logging.INFO)
 
@@ -186,6 +186,11 @@ class Trainer(object):
         self.optimizer = getattr(optim, settings.optimizer)(
             model.parameters(), lr=settings.lr)
         self.clip_norm = settings.clip_norm
+        self.mixed_precision: bool = settings.mixed_precision
+        self.scaler: Optional[GradScaler] = None
+        if self.mixed_precision:
+            print("::: Automatic Mixed Precision is activated :::")
+            self.scaler = GradScaler()
 
         self.report_freq = settings.report_freq
         self.num_batches = num_instances // dataset.batch_size
@@ -296,17 +301,34 @@ class Trainer(object):
 
         for b, batch in enumerate(self.dataset.batch_generator()):
             # get loss
-            loss = self.model.loss(batch, get_batch_task(self.model.tasks.values()))
+            if self.mixed_precision:
+                with autocast():
+                    loss = self.model.loss(batch, get_batch_task(self.model.tasks.values()))
+            else:
+                loss = self.model.loss(batch, get_batch_task(self.model.tasks.values()))
 
             if not loss:
                 raise ValueError("Got empty loss, no tasks defined?")
 
             # optimize
             self.optimizer.zero_grad()
-            self.weight_loss(loss).backward()
-            if self.clip_norm > 0:
-                clip_grad_norm_(self.model.parameters(), self.clip_norm)
-            self.optimizer.step()
+
+            if self.mixed_precision:
+                # Loss is different for each task: we get the weighted loss
+                self.scaler.scale(self.weight_loss(loss)).backward()
+
+                # Cf. https://pytorch.org/docs/master/notes/amp_examples.html#gradient-clipping
+                self.scaler.unscale_(self.optimizer)
+                if self.clip_norm > 0:
+                    clip_grad_norm_(self.model.parameters(), self.clip_norm)
+
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                self.weight_loss(loss).backward()
+                if self.clip_norm > 0:
+                    clip_grad_norm_(self.model.parameters(), self.clip_norm)
+                self.optimizer.step()
 
             # accumulate
             rep_items += type(self.dataset).get_nelement(batch)

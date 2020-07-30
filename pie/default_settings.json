@@ -117,6 +117,8 @@
   "load_pretrained_embeddings": "", // file with pretrained embeddings in word2vec format
   "load_pretrained_encoder": "", // path to file with pretrained sentence encoder
   "freeze_embeddings": false, // whether to freeze the word embeddings
+  "mixed_precision": false,  // Train with automatic mixed precision
+
 
   // * Optimization
   "dropout": 0.0, // dropout
