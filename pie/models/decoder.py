@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
+from sadice.loss import SelfAdjDiceLoss
+
 from pie import initialization
 from pie import torch_utils
 from pie.constants import TINY
@@ -51,7 +53,11 @@ class LinearDecoder(nn.Module):
 
         return linear_out
 
-    def loss(self, logits, targets):
+    def loss(self, logits, targets, use_loss=None):
+        if use_loss and use_loss.lower() == "dice":
+            return SelfAdjDiceLoss(reduction="none")(
+                logits.view(-1, len(self.label_encoder)), targets.view(-1)
+            )
         loss = F.cross_entropy(
             logits.view(-1, len(self.label_encoder)), targets.view(-1),
             weight=self.nll_weight, reduction="mean",
@@ -169,7 +175,7 @@ class CRFDecoder(nn.Module):
 
         return score
 
-    def loss(self, logits, targets, lengths):
+    def loss(self, logits, targets, lengths, use_loss=None):
         # mask on padding
         mask = torch_utils.make_length_mask(lengths).float()
         # (batch x seq_len) => (seq_len x batch)
@@ -294,7 +300,7 @@ class AttentionalDecoder(nn.Module):
 
         return self.proj(context)
 
-    def loss(self, logits, targets):
+    def loss(self, logits, targets, use_loss=None):
         """
         Compute loss from logits (output of forward)
 

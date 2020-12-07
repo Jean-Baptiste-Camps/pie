@@ -213,6 +213,12 @@ class SimpleModel(BaseModel):
             pass
 
     def loss(self, batch_data, *target_tasks):
+        """ Compute loss directly at the "hyper" model level
+
+        :param batch_data: Data for training
+        :param target_tasks: Tasks we train for
+        :return:
+        """
         ((word, wlen), (char, clen)), tasks = batch_data
         output = {}
 
@@ -237,18 +243,19 @@ class SimpleModel(BaseModel):
             decoder = self.decoders[task]
 
             if self.tasks[task]['level'].lower() == 'char':
+                print(self.tasks[task])
                 if isinstance(decoder, LinearDecoder):
                     logits = decoder(cemb_outs)
-                    output[task] = decoder.loss(logits, target)
+                    output[task] = decoder.loss(logits, target, use_loss=self.tasks[task]["loss"])
                 elif isinstance(decoder, CRFDecoder):
                     logits = decoder(cemb_outs)
-                    output[task] = decoder.loss(logits, target, length)
+                    output[task] = decoder.loss(logits, target, length, use_loss=self.tasks[task]["loss"])
                 elif isinstance(decoder, AttentionalDecoder):
                     cemb_outs = F.dropout(
                         cemb_outs, p=self.dropout, training=self.training)
                     context = get_context(outs, wemb, wlen, self.tasks[task]['context'])
                     logits = decoder(target, length, cemb_outs, clen, context=context)
-                    output[task] = decoder.loss(logits, target)
+                    output[task] = decoder.loss(logits, target, use_loss=self.tasks[task]["loss"])
             else:
                 if isinstance(decoder, LinearDecoder):
                     logits = decoder(outs)

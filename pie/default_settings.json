@@ -87,7 +87,8 @@
     "level": "token",
     "layer": -1,
     "decoder": "linear",
-    "context": "sentence"
+    "context": "sentence",
+    "loss": "cross_entropy"
   },
 
   // general task schedule params (can be overwritten in the "settings" entry of each)
